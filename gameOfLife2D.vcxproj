@@ -143,6 +143,18 @@
   <ItemGroup>
     <ClCompile Include="src\glad.c" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\ogl_objects\EBO.cpp" />
+    <ClCompile Include="src\ogl_objects\FBO.cpp" />
+    <ClCompile Include="src\ogl_objects\RBO.cpp" />
+    <ClCompile Include="src\ogl_objects\VAO.cpp" />
+    <ClCompile Include="src\ogl_objects\VBO.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\headers\EBO.h" />
+    <ClInclude Include="src\headers\FBO.h" />
+    <ClInclude Include="src\headers\RBO.h" />
+    <ClInclude Include="src\headers\VAO.h" />
+    <ClInclude Include="src\headers\VBO.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
