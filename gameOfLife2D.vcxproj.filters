@@ -53,5 +53,12 @@
     <ClInclude Include="src\headers\VBO.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\headers\shader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\shaders\line.frag" />
+    <None Include="src\shaders\line.vert" />
   </ItemGroup>
 </Project>
