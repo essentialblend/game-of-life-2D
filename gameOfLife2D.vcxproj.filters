@@ -53,5 +53,14 @@
     <ClInclude Include="src\headers\VBO.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\headers\shader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\shaders\grid.frag" />
+    <None Include="src\shaders\grid.vert" />
+    <None Include="src\shaders\gridBox.frag" />
+    <None Include="src\shaders\gridBox.vert" />
   </ItemGroup>
 </Project>

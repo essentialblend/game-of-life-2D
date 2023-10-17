@@ -153,8 +153,15 @@
     <ClInclude Include="src\headers\EBO.h" />
     <ClInclude Include="src\headers\FBO.h" />
     <ClInclude Include="src\headers\RBO.h" />
+    <ClInclude Include="src\headers\shader.h" />
     <ClInclude Include="src\headers\VAO.h" />
     <ClInclude Include="src\headers\VBO.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\shaders\grid.frag" />
+    <None Include="src\shaders\grid.vert" />
+    <None Include="src\shaders\gridBox.frag" />
+    <None Include="src\shaders\gridBox.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
