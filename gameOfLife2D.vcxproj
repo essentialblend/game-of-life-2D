@@ -142,6 +142,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\glad.c" />
+    <ClCompile Include="src\helper_structs\gridController.h" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\ogl_objects\EBO.cpp" />
     <ClCompile Include="src\ogl_objects\FBO.cpp" />
