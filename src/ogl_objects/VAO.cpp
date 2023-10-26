@@ -1,16 +1,17 @@
 #include <../gameOfLife2D/src/headers/VAO.h>
 
-/*Constructor*/
+// Constructor
 VAO::VAO() : id(0) {
-    glGenVertexArrays(1, &id);
+    // glGenVertexArrays(1, &id);
+    glCreateVertexArrays(1, &id);
 }
 
-/*Move constructor*/
+// Move constructor
 VAO::VAO(VAO&& other) noexcept : id(other.id) {
     other.id = 0;
 }
 
-/*Move assignment operator*/
+// Move assignment operator
 VAO& VAO::operator=(VAO&& other) noexcept {
     if (this != &other) {
         glDeleteVertexArrays(1, &id);
@@ -20,22 +21,22 @@ VAO& VAO::operator=(VAO&& other) noexcept {
     return *this;
 }
 
-/*Destructor*/
+// Destructor
 VAO::~VAO() {
     glDeleteVertexArrays(1, &id);
 }
 
-/*Bind Vertex Array*/
+// Bind Vertex Array
 void VAO::bind() const {
     glBindVertexArray(id);
 }
 
-/*Unbind Vertex Array*/
+// Unbind Vertex Array
 void VAO::unbind() const {
     glBindVertexArray(0);
 }
 
-/*Get FBO*/
+// Get FBO
 GLuint VAO::getVAO() const {
     return id;
 }

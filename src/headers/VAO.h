@@ -1,35 +1,35 @@
 #pragma once
 
-#include <glad/glad.h>
+#include <GLAD/glad/glad.h>
 
 class VAO {
 public:
-    /*Constructor*/
+    // Constructor
     VAO();
 
-    /*Delete copy constructor and copy assignment operators*/
+    // Delete copy constructor and copy assignment operators
     VAO(const VAO&) = delete;
     VAO& operator=(const VAO&) = delete;
 
-    /*Move constructor*/
+    // Move constructor
     VAO(VAO&& other) noexcept;
-
-    /*Move assignment operator*/
+     
+    // Move assignment operator
     VAO& operator=(VAO&& other) noexcept;
 
-    /*Destructor*/
+    // Destructor
     ~VAO();
 
-    /*Bind Vertex Array*/
+    // Bind Vertex Array
     void bind() const;
 
-    /*Unbind Vertex Array*/
+    // Unbind Vertex Array
     void unbind() const;
 
-    /*Get VAO ID*/
+    // Get VAO ID
     GLuint getVAO() const;
 
 private:
-    /*Vertex Array ID*/
+    // Vertex Array ID
     GLuint id;
 };

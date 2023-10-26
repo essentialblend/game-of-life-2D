@@ -39,6 +39,9 @@
     <ClCompile Include="src\helper_structs\gridController.h">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\ogl_objects\texture.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\headers\EBO.h">
@@ -59,11 +62,30 @@
     <ClInclude Include="src\headers\shader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\helper_structs\cell.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\helper_structs\cellGrid.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\helper_structs\character.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\headers\texture.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\headers\mainIncludes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\shaders\grid.frag" />
     <None Include="src\shaders\grid.vert" />
     <None Include="src\shaders\gridBox.frag" />
     <None Include="src\shaders\gridBox.vert" />
+    <None Include="src\shaders\cell.frag" />
+    <None Include="src\shaders\cell.vert" />
+    <None Include="src\shaders\textPrimary.vert" />
+    <None Include="src\shaders\textPrimary.frag" />
   </ItemGroup>
 </Project>

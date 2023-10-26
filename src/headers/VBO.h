@@ -1,30 +1,34 @@
 #pragma once
 
-#include <glad/glad.h>
+#include <GLAD/glad/glad.h>
 
 class VBO {
 public:
 
     VBO();
 
-    /*Delete copy constructor and copy assignment operators*/
+    // Delete copy constructor and copy assignment operators
     VBO(const VBO&) = delete;
     VBO& operator=(const VBO&) = delete;
 
-    /*Move constructor*/
+    // Move constructor
     VBO(VBO&& other) noexcept;
 
-    /*Move assignment operator*/
+    // Move assignment operator
     VBO& operator=(VBO&& other) noexcept;
 
-    /*Destructor*/
+    // Destructor
     ~VBO();
 
-    /*Bind VBO*/
-    void bind() const;
+    // Used if VBO buffer size is altered in application.
+    void setBufferData(const void* data, GLsizeiptr bufferSize, GLenum bufferDrawType) const;
+    
+    // Used if VBO buffer size is known to be fixed. Can alter the data so long as size remains constant. Better performance.
+    void setBufferStorage(const void* bufferData, GLsizeiptr bufferSize, GLbitfield flags) const;
 
-    /*Unbind VBO*/
-    void unbind() const;
+    void setBufferSubData(GLintptr offset, GLsizeiptr size, const void* data) const;
+
+    const unsigned int& getVBO();
 
 private:
     GLuint id;

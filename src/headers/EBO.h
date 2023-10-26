@@ -1,33 +1,38 @@
 #pragma once
 
-#include <GLAD/glad.h>
+#include <GLAD/glad/glad.h>
 
 class EBO {
 public:
 
     EBO();
 
-    /*Delete copy constructor and copy assignment operators*/
+    // Delete copy constructor and copy assignment operators
     EBO(const EBO&) = delete;
     EBO& operator=(const EBO&) = delete;
 
-    /*Define the Move constructor*/
+    // Define the Move constructor
     EBO(EBO&& other) noexcept;
 
-    /*Move assignment operator*/
+    // Move assignment operator
     EBO& operator=(EBO&& other) noexcept;
 
-    /*Destructor*/
+    // Destructor
     ~EBO();
 
-    /*Bind EBO*/
+    // Bind EBO
     void bind() const;
 
-    /*Unbind EBO*/
+    // Unbind EBO
     void unbind() const;
 
-    /*Get EBO*/
+    // Get EBO
     unsigned int getEBO() const;
+
+    // Set buffer data.
+    void setBufferData(GLsizeiptr size, const void* data, GLenum usage) const;
+
+    void setBufferStorage(const void* bufferData, GLsizeiptr bufferSize, GLbitfield flags) const;
 
 private:
     unsigned int id;
