@@ -22,7 +22,6 @@ private:
 	float gridxOffset, gridyOffset;
 	bool zoomIn;
 	std::vector<float> gridPointsArray;
-	std::vector<float> cellVerticesArray;
 	// Window variables
 	unsigned int windowWidth, windowHeight;
 	/*Grid-box quad dimension variables*/
@@ -36,7 +35,10 @@ private:
 	std::vector<unsigned int> gridBoxQuadIndicesArray;
 	std::vector<Cell> masterCellList;
 	glm::ivec2 clickedCellRowColumn;
-	std::vector<glm::vec2> offsetsForInstancedRendering;
+	std::vector<glm::vec2> offsetsForInstancedRenderingArray;
+	glm::ivec2 cellIndicesVertexAttribute;
+	// Used as a base position for instanced rendering.
+	std::vector<float> verticesForBaseCell;
 
 
 	void generateGridPoints()
@@ -102,85 +104,63 @@ private:
 		quadHeight = maxQuadY - minQuadY;
 	}
 
-	void generateVerticesAndInstancedOffsetsFromGrid()
+	void generateInstancedOffsetsFromGrid()
 	{
-		offsetsForInstancedRendering.clear();
+		
+		offsetsForInstancedRenderingArray.resize(static_cast<GLint64>(numRowCells * numColumnCells));
+		offsetsForInstancedRenderingArray.clear();
 
-		for (int row = 0; row < (1); ++row)
+
+		// Bottom left vertex
+		float bottomLeftX = minQuadX;
+		float bottomLeftY = minQuadY;
+
+		// Convert to NDC and store vertices for a single cell
+		verticesForBaseCell.push_back(2.f * (bottomLeftX / windowWidth) - 1.f + centerOffsetPostGridBoxResize);
+		verticesForBaseCell.push_back(2.f * (bottomLeftY / windowHeight) - 1.f);
+		verticesForBaseCell.push_back(0.f);
+
+		// Bottom right vertex
+		float bottomRightX = bottomLeftX + cellSize;
+		float bottomRightY = bottomLeftY;
+
+		verticesForBaseCell.push_back(2.f * (bottomRightX / windowWidth) - 1.f + centerOffsetPostGridBoxResize);
+		verticesForBaseCell.push_back(2.f * (bottomRightY / windowHeight) - 1.f);
+		verticesForBaseCell.push_back(0.f);
+
+		// Top right vertex
+		float topRightX = bottomRightX;
+		float topRightY = bottomLeftY + cellSize;
+
+		verticesForBaseCell.push_back(2.f * (topRightX / windowWidth) - 1.f + centerOffsetPostGridBoxResize);
+		verticesForBaseCell.push_back(2.f * (topRightY / windowHeight) - 1.f);
+		verticesForBaseCell.push_back(0.f);
+
+		// Top left vertex
+		float topLeftX = bottomLeftX;
+		float topLeftY = topRightY;
+
+		verticesForBaseCell.push_back(2.f * (topLeftX / windowWidth) - 1.f + centerOffsetPostGridBoxResize);
+		verticesForBaseCell.push_back(2.f * (topLeftY / windowHeight) - 1.f);
+		verticesForBaseCell.push_back(0.f);
+
+		// Generate and store offsets for instanced rendering
+		for (int row = 0; row < (numRowCells); ++row)
 		{
-			for (int col = 0; col < 2; ++col)
+			for (int col = 0; col < numColumnCells; ++col)
 			{
-				Cell tempCell;
-				
-				std::vector<float> tempVertexArray;
-				tempVertexArray.clear();
-
-
-				// Bottom left vertex
-				float bottomLeftX = minQuadX + col * cellSize;
-				float bottomLeftY = minQuadY + row * cellSize;
-
-				// Check for redundancy: Convert to NDC and store vertices for our Cell object instance
-				tempVertexArray.push_back(2.f * (bottomLeftX / windowWidth) - 1.f + centerOffsetPostGridBoxResize);
-				tempVertexArray.push_back(2.f * (bottomLeftY / windowHeight ) - 1.f);
-				tempVertexArray.push_back(0.f);
-
-				// Bottom right vertex
-				float bottomRightX = bottomLeftX + cellSize;
-				float bottomRightY = bottomLeftY;
-
-				tempVertexArray.push_back(2.f * (bottomRightX / windowWidth) - 1.f + centerOffsetPostGridBoxResize);
-				tempVertexArray.push_back(2.f * (bottomRightY / windowHeight) - 1.f);
-				tempVertexArray.push_back(0.f);
-
-				// Top right vertex
-				float topRightX = bottomRightX;
-				float topRightY = bottomLeftY + cellSize;
-
-				tempVertexArray.push_back(2.f * (topRightX / windowWidth) - 1.f + centerOffsetPostGridBoxResize);
-				tempVertexArray.push_back(2.f * (topRightY / windowHeight) - 1.f);
-				tempVertexArray.push_back(0.f);
-
-
-				// Top left vertex
-				float topLeftX = bottomLeftX;
-				float topLeftY = topRightY;
-
-				tempVertexArray.push_back(2.f * (topLeftX / windowWidth) - 1.f + centerOffsetPostGridBoxResize);
-				tempVertexArray.push_back(2.f * (topLeftY / windowHeight) - 1.f);
-				tempVertexArray.push_back(0.f);
-
-				//Store vertices for the one cell and add the cell to our master cell list
-				tempCell.setCellQuadVertices(tempVertexArray);
-				tempCell.setCellCoords(glm::ivec2(row, col));
-				masterCellList.push_back(tempCell);
-
-				// Convert to NDC and store to master cell vertices array
-				cellVerticesArray.push_back((2.f * (bottomLeftX / windowWidth)) - 1.f + centerOffsetPostGridBoxResize);
-				cellVerticesArray.push_back((2.f * (bottomLeftY / windowHeight)) - 1.f);
-				cellVerticesArray.push_back(0.f);
-
-				cellVerticesArray.push_back((2.f * (bottomRightX / windowWidth)) - 1.f + centerOffsetPostGridBoxResize);
-				cellVerticesArray.push_back((2.f * (bottomRightY / windowHeight)) - 1.f);
-				cellVerticesArray.push_back(0.f);
-
-				cellVerticesArray.push_back((2.f * (topRightX / windowWidth)) - 1.f + centerOffsetPostGridBoxResize);
-				cellVerticesArray.push_back((2.f * (topRightY / windowHeight)) - 1.f);
-				cellVerticesArray.push_back(0.f);
-
-				cellVerticesArray.push_back((2.f * (topLeftX / windowWidth)) - 1.f + centerOffsetPostGridBoxResize);
-				cellVerticesArray.push_back((2.f * (topLeftY / windowHeight)) - 1.f);
-				cellVerticesArray.push_back(0.f);
-
-				// generate and store offsets for instanced rendering. maybe issue
-				float offsetX = (col * cellSize);
-				float offsetY = (row * cellSize);
+				float offsetX = (row * cellSize);
+				float offsetY = (col * cellSize);
 
 				glm::vec2 relOff = glm::vec2(
 					(2.f * (offsetX / windowWidth)),
 					(2.f * (offsetY / windowHeight))
 				);
-				offsetsForInstancedRendering.push_back(relOff);
+				offsetsForInstancedRenderingArray.push_back(relOff);
+
+				Cell tempCell;
+				tempCell.setCellCoords(glm::vec2(row, col));
+				masterCellList.push_back(tempCell);
 			}
 		}
 	}
@@ -189,8 +169,8 @@ public:
 	GridController(const unsigned int wW, const unsigned int wH, const float gridBS, const int numRC)
 	{
 		// Set variables
-		numRowCells = numRC;
-		numColumnCells = 0;
+		numColumnCells = numRC;
+		numRowCells = 0;
 		windowWidth = wW;
 		windowHeight = wH;
 		minQuadX = 0.f;
@@ -204,20 +184,23 @@ public:
 		centerOffsetPostGridBoxResize = 0.f;
 		clickedCellRowColumn.x = 0;
 		clickedCellRowColumn.y = 0;
+		cellIndicesVertexAttribute.x = 0;
+		cellIndicesVertexAttribute.y = 0;
+
 
 
 		// Clear the arrays
 		gridPointsArray.clear();
-		cellVerticesArray.clear();
 		gridBoxQuadVerticesArray.clear();
 		gridBoxQuadIndicesArray.clear();
 		masterCellList.clear();
+		verticesForBaseCell.clear();
 
 		// Generate gridBox dimensions
 		computeGridBoxDimensions(0.f);
 
 		float smallestDimension = std::min(quadHeight, quadWidth);
-		cellSize = smallestDimension / numRowCells;
+		cellSize = smallestDimension / numColumnCells;
 		numRowCells = static_cast<int>(quadWidth / cellSize);
 		numColumnCells = static_cast<int>(quadHeight / cellSize);
 
@@ -247,7 +230,7 @@ public:
 		generateGridPoints();
 
 		// Generate cell vertices from gridpoints
-		generateVerticesAndInstancedOffsetsFromGrid();
+		generateInstancedOffsetsFromGrid();
 	}
 
 	void setupGridBox(VAO& gridBVAO, VBO& gridBVBO)
@@ -344,10 +327,10 @@ public:
 			glm::ivec2 currentCellCoords = cell.getCellCoords();
 			if (currentCellCoords == clickedCellRowColumn)
 			{
-				std::cout << "Cell clicked: " << clickedCellRowColumn.x << " - " << clickedCellRowColumn.y << "\n";
+			/*	std::cout << "Cell clicked: " << clickedCellRowColumn.x << " - " << clickedCellRowColumn.y << "\n";
 				std::cout << "Pre cell activation: " << cell.getCellLifeStatus() << "\n";
 				cell.flipCellLifeStatus();
-				std::cout << "Post cell activation: " << cell.getCellLifeStatus() << "\n";
+				std::cout << "Post cell activation: " << cell.getCellLifeStatus() << "\n";*/
 			}
 		}
 		retFlag = false;
@@ -382,10 +365,6 @@ public:
 	{
 		return gridPointsArray;
 	}
-	const std::vector<float>& getCellVerticesArray()
-	{
-		return cellVerticesArray;
-	}
 	const std::vector<float>& getGridBoxVerticesArray()
 	{
 		return gridBoxQuadVerticesArray;
@@ -410,15 +389,23 @@ public:
 	{
 		return cellSize;
 	}
-	const std::vector<glm::vec2>& getInstanceOffsetsArray()
-	{
-		return offsetsForInstancedRendering;
-	}
 	const float& getOffsetPostGridBoxResize()
 	{
 		return centerOffsetPostGridBoxResize;
 	}
-	
+	const glm::ivec2& getCellIndicesForVertexAttribute()
+	{
+		return cellIndicesVertexAttribute;
+	}
+	const std::vector<float>& getVerticesForOffsetsReference()
+	{
+		return verticesForBaseCell;
+	}
+	const std::vector<glm::vec2>& getInstanceOffsetsArray()
+	{
+		return offsetsForInstancedRenderingArray;
+	}
+
 	// Setters
 	void setZoomFactor(float zoomF)
 	{

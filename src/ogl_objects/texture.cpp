@@ -80,7 +80,7 @@ void TextureObject::setParameters(GLint minWrapBehavior, GLint maxWrapBehavior, 
     // Texture filtering
     if (IsSingleMipMap)
     {
-        glTextureParameteri(id, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTextureParameteri(id, GL_TEXTURE_MIN_FILTER, minFilterBehavior);
     }
     else
     {

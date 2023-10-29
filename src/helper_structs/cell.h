@@ -1,11 +1,11 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include "../../../includes/GLAD/glad/glad.h"
 
 class Cell {
 
 private:
-	std::vector<float> cellQuadVertices;
 	bool isCellAlive;
 	glm::ivec2 cellCoords;
 
@@ -14,29 +14,16 @@ public:
 	Cell()
 	{
 		isCellAlive = false;
-		cellQuadVertices.clear();
-		cellCoords.x = 0;
-		cellCoords.y = 0;
-	};
-
-	Cell(const std::vector<float>& cellQuadVert, bool isAlive) : Cell()
-
-	{
-		cellQuadVertices = cellQuadVert;
-		isCellAlive = isAlive;
 		cellCoords.x = 0;
 		cellCoords.y = 0;
 	};
 
 	// Getters
-	const bool getCellLifeStatus()
+	const GLboolean getCellLifeStatus()
 	{
 		return isCellAlive;
 	}
-	const std::vector<float>& getCellQuadVertices()
-	{
-		return cellQuadVertices;
-	}
+
 	const glm::ivec2& getCellCoords()
 	{
 		return cellCoords;
@@ -54,11 +41,7 @@ public:
 	{
 		isCellAlive = lifeSt;
 	}
-	void setCellQuadVertices(const std::vector<float>& cellQuadVert)
-	{
-		cellQuadVertices.clear();
-		cellQuadVertices = cellQuadVert;
-	}
+
 	void setCellCoords(const glm::ivec2& cellC)
 	{
 		cellCoords = cellC;

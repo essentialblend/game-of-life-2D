@@ -151,6 +151,7 @@
     <ClCompile Include="src\ogl_objects\EBO.cpp" />
     <ClCompile Include="src\ogl_objects\FBO.cpp" />
     <ClCompile Include="src\ogl_objects\RBO.cpp" />
+    <ClCompile Include="src\ogl_objects\SSBO.cpp" />
     <ClCompile Include="src\ogl_objects\texture.cpp" />
     <ClCompile Include="src\ogl_objects\VAO.cpp" />
     <ClCompile Include="src\ogl_objects\VBO.cpp" />
@@ -161,11 +162,11 @@
     <ClInclude Include="src\headers\mainIncludes.h" />
     <ClInclude Include="src\headers\RBO.h" />
     <ClInclude Include="src\headers\shader.h" />
+    <ClInclude Include="src\headers\SSBO.h" />
     <ClInclude Include="src\headers\texture.h" />
     <ClInclude Include="src\headers\VAO.h" />
     <ClInclude Include="src\headers\VBO.h" />
     <ClInclude Include="src\helper_structs\cell.h" />
-    <ClInclude Include="src\helper_structs\cellGrid.h" />
     <ClInclude Include="src\helper_structs\character.h" />
   </ItemGroup>
   <ItemGroup>
@@ -175,6 +176,7 @@
     <None Include="src\shaders\grid.vert" />
     <None Include="src\shaders\gridBox.frag" />
     <None Include="src\shaders\gridBox.vert" />
+    <None Include="src\shaders\logicCompute.comp" />
     <None Include="src\shaders\textPrimary.frag" />
     <None Include="src\shaders\textPrimary.vert" />
   </ItemGroup>

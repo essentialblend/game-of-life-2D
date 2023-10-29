@@ -3,6 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <map>
+#include <random>
 
 #include <GLAD/glad/glad.h>
 #include <GLFWLib/glfw3.h>
@@ -16,6 +17,7 @@
 #include <../gameOfLife2D/src/headers/VAO.h>
 #include <../gameOfLife2D/src/headers/VBO.h>
 #include <../gameOfLife2D/src/headers/EBO.h>
+#include <../gameOfLife2D/src/headers/SSBO.h>
 #include <../gameOfLife2D/src/headers/texture.h>
 
 #include <../gameOfLife2D/src/headers/shader.h>

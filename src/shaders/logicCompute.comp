@@ -1,0 +1,30 @@
+#version 460 core
+
+layout(std430, binding = 0) buffer currentStateBuffer {
+    int currentState[];
+};
+
+layout(std430, binding = 1) buffer nextStateBuffer {
+    int nextState[];
+};
+
+uniform int randomIndex;
+
+layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+
+
+void main() {
+    
+    int arraySize = currentState.length();
+    
+    // Set only the random cell to 1, all others to 0
+    for (int i = 0; i < arraySize; ++i) {
+        if (i == randomIndex) {
+            nextState[i] = 1;
+        } else {
+            nextState[i] = 0;
+        }
+    }
+
+}
