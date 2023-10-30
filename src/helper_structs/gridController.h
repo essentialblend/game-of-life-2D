@@ -6,6 +6,8 @@
 #include "../headers/VAO.h"
 #include "../headers/VBO.h"
 #include "../headers/EBO.h"
+#include "../headers/SSBO.h"
+#include "../headers/texture.h"
 #include "cell.h"
 
 #include <GLFWLib/glfw3.h>
@@ -39,6 +41,8 @@ private:
 	glm::ivec2 cellIndicesVertexAttribute;
 	// Used as a base position for instanced rendering.
 	std::vector<float> verticesForBaseCell;
+	TextureObject cellStatesTextureBuffer;
+	std::vector<int> masterCellLifeStatesArray;
 
 
 	void generateGridPoints()
@@ -149,8 +153,8 @@ private:
 		{
 			for (int col = 0; col < numColumnCells; ++col)
 			{
-				float offsetX = (row * cellSize);
-				float offsetY = (col * cellSize);
+				float offsetX = row * cellSize;
+				float offsetY = col * cellSize;
 
 				glm::vec2 relOff = glm::vec2(
 					(2.f * (offsetX / windowWidth)),
@@ -160,6 +164,7 @@ private:
 
 				Cell tempCell;
 				tempCell.setCellCoords(glm::vec2(row, col));
+				tempCell.setCellOffsetVertices(relOff);
 				masterCellList.push_back(tempCell);
 			}
 		}
@@ -187,36 +192,35 @@ public:
 		cellIndicesVertexAttribute.x = 0;
 		cellIndicesVertexAttribute.y = 0;
 
-
-
 		// Clear the arrays
 		gridPointsArray.clear();
 		gridBoxQuadVerticesArray.clear();
 		gridBoxQuadIndicesArray.clear();
 		masterCellList.clear();
 		verticesForBaseCell.clear();
+		masterCellLifeStatesArray.clear();
 
 		// Generate gridBox dimensions
 		computeGridBoxDimensions(0.f);
 
-		float smallestDimension = std::min(quadHeight, quadWidth);
+		float smallestDimension = static_cast<float>(std::min(quadHeight, quadWidth));
 		cellSize = smallestDimension / numColumnCells;
 		numRowCells = static_cast<int>(quadWidth / cellSize);
 		numColumnCells = static_cast<int>(quadHeight / cellSize);
 
 		// Account for perfectly squared grid cells
-		float excessWidth_Pixels = quadWidth - (cellSize * (numRowCells));
-		float excessWidth_NDC = (2.f * (excessWidth_Pixels / windowWidth));
+		float excessWidth_Pixels = static_cast<float>(quadWidth - (cellSize * (numRowCells)));
+		float excessWidth_NDC = static_cast<float>((2.f * (excessWidth_Pixels / windowWidth)));
 
 		centerOffsetPostGridBoxResize = excessWidth_NDC * 0.5f;
 		offsetForMouseInGridCheck = excessWidth_Pixels * 0.5f;
 
-		// Init grid-box vertices
+		// Init grid-box vertices and indices.
 		gridBoxQuadVerticesArray = {
-			(gridBoxSize - excessWidth_NDC) + centerOffsetPostGridBoxResize,  gridBoxSize, 0.f,
-			(gridBoxSize - excessWidth_NDC) + centerOffsetPostGridBoxResize, -gridBoxSize, 0.f,
-			-gridBoxSize + centerOffsetPostGridBoxResize, -gridBoxSize, 0.f,
-			-gridBoxSize + centerOffsetPostGridBoxResize,  gridBoxSize, 0.f
+			static_cast<float>((gridBoxSize - excessWidth_NDC) + centerOffsetPostGridBoxResize), static_cast<float>(gridBoxSize), 0.f,
+			static_cast<float>((gridBoxSize - excessWidth_NDC) + centerOffsetPostGridBoxResize), static_cast<float>(-gridBoxSize), 0.f,
+			static_cast<float>(-gridBoxSize + centerOffsetPostGridBoxResize), static_cast<float>(-gridBoxSize), 0.f,
+			static_cast<float>(-gridBoxSize + centerOffsetPostGridBoxResize), static_cast<float>(gridBoxSize), 0.f
 		};
 
 		gridBoxQuadIndicesArray = {
@@ -231,6 +235,22 @@ public:
 
 		// Generate cell vertices from gridpoints
 		generateInstancedOffsetsFromGrid();
+
+		masterCellLifeStatesArray.resize((GLint64)(numColumnCells * numRowCells));
+		for (Cell& cell : masterCellList)
+		{
+			masterCellLifeStatesArray.push_back(cell.getCellLifeStatus());
+		}
+
+		// Setup the texture we use as a buffer to pass lifestates to the fragment shader, used to enable instanced rendering.
+		setupTextureForFragShaderLifeStatesBuffer();
+	}
+
+	void setupTextureForFragShaderLifeStatesBuffer()
+	{
+		cellStatesTextureBuffer.setParameters(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST, true);
+		glTextureStorage2D(cellStatesTextureBuffer.getTextureObjectID(), 1, GL_R32I, numColumnCells, numRowCells);
+		glTextureSubImage2D(cellStatesTextureBuffer.getTextureObjectID(), 0, 0, 0, numColumnCells, numRowCells, GL_RED_INTEGER, GL_INT, (void*)masterCellLifeStatesArray.data());
 	}
 
 	void setupGridBox(VAO& gridBVAO, VBO& gridBVBO)
@@ -281,7 +301,7 @@ public:
 		glVertexArrayAttribBinding(gridVAO.getVAO(), 0, 0);
 	}
 
-	void processInput(const int* key, GLFWwindow& mainWindow)
+	void processInput(const int* key, GLFWwindow& mainWindow, SSBO& nextIterationSBO)
 	{
 		switch (*key) {
 			case GLFW_KEY_EQUAL:
@@ -298,20 +318,22 @@ public:
 				break;
 			case GLFW_MOUSE_BUTTON_LEFT:
 				bool retFlag;
-				activateCell(mainWindow, retFlag);
+				activateCell(mainWindow, retFlag, nextIterationSBO);
 				if (retFlag) return;
 				break;
 		}
 	}
 
-	void activateCell(GLFWwindow& mainWindow, bool& retFlag)
+	void activateCell(GLFWwindow& mainWindow, bool& retFlag, SSBO& nextIterationSBO)
 	{
 		retFlag = true;
 		double pixelMouseX = 0, pixelMouseY = 0;
 		glfwGetCursorPos(&mainWindow, &pixelMouseX, &pixelMouseY);
 
+		pixelMouseY = windowHeight - pixelMouseY;
+
 		// Check if mouse click was inside the grid-box
-		if (pixelMouseX < minQuadX || pixelMouseX >(maxQuadX + offsetForMouseInGridCheck) || (windowHeight - pixelMouseY) < minQuadY || (windowHeight - pixelMouseY) > maxQuadY)
+		if (pixelMouseX < minQuadX || pixelMouseX > (maxQuadX + offsetForMouseInGridCheck) || (windowHeight - pixelMouseY) < minQuadY || (windowHeight - pixelMouseY) > maxQuadY)
 		{
 			return;
 		}
@@ -319,20 +341,39 @@ public:
 		double gridX = ((pixelMouseX - offsetForMouseInGridCheck) - minQuadX) / cellSize;
 		double gridY = (pixelMouseY - minQuadY) / cellSize;
 
-		clickedCellRowColumn.x = static_cast<int>(std::floor(gridY));
-		clickedCellRowColumn.y = static_cast<int>(std::floor(gridX));
+		// Band-aid fix to prevent erroneous detection / runtime crashes.
+		if (gridX < 0)
+			return;
+
+		clickedCellRowColumn.x = static_cast<int>(std::floor(gridX));
+		clickedCellRowColumn.y = static_cast<int>(std::floor(gridY));
+
+		// Convert the 2D index to a 1D index to use for our lifestates array.
+		int index1D = clickedCellRowColumn.x * numColumnCells + clickedCellRowColumn.y;
+
+		if (masterCellLifeStatesArray[index1D] == 0)
+		{
+			masterCellLifeStatesArray[index1D] = 1;
+		}
+		else
+		{
+			masterCellLifeStatesArray[index1D] = 0;
+		}
+
+		//glGetNamedBufferSubData(nextIterationSBO.getSSBO(), 0, newCellStates.size() * sizeof(int), newCellStates.data());
+		
+		// Update the texture array.
+		glTextureSubImage2D(cellStatesTextureBuffer.getTextureObjectID(), 0, 0, 0, numColumnCells, numRowCells, GL_RED_INTEGER, GL_INT, masterCellLifeStatesArray.data());
 
 		for (Cell& cell : masterCellList)
 		{
 			glm::ivec2 currentCellCoords = cell.getCellCoords();
-			if (currentCellCoords == clickedCellRowColumn)
+			if (currentCellCoords == static_cast<glm::ivec2>(clickedCellRowColumn))
 			{
-			/*	std::cout << "Cell clicked: " << clickedCellRowColumn.x << " - " << clickedCellRowColumn.y << "\n";
-				std::cout << "Pre cell activation: " << cell.getCellLifeStatus() << "\n";
-				cell.flipCellLifeStatus();
-				std::cout << "Post cell activation: " << cell.getCellLifeStatus() << "\n";*/
+				std::cout << "Cell clicked: " << clickedCellRowColumn.x << " - " << clickedCellRowColumn.y << "\n";
 			}
 		}
+
 		retFlag = false;
 	}
 
@@ -405,29 +446,33 @@ public:
 	{
 		return offsetsForInstancedRenderingArray;
 	}
+	const TextureObject& getCellStatesTextureObject()
+	{
+		return cellStatesTextureBuffer;
+	}
 
 	// Setters
-	void setZoomFactor(float zoomF)
+	void setZoomFactor(const float zoomF)
 	{
 		zoomFactor = zoomF;
 	}
-	void setMaxZoomIn(float& maxZI)
+	void setMaxZoomIn(const float& maxZI)
 	{
 		maxZoomIn = maxZI;
 	}
-	void setMaxZoomOut(float& maxZO)
+	void setMaxZoomOut(const float& maxZO)
 	{
 		maxZoomIn = maxZO;
 	}
-	void setGridXOffset(float& gridX)
+	void setGridXOffset(const float& gridX)
 	{
 		gridxOffset = gridX;
 	}
-	void setGridYOffset(float& gridY)
+	void setGridYOffset(const float& gridY)
 	{
 		gridyOffset = gridY;
 	}
-	void setZoomInBool(bool& zoom)
+	void setZoomInBool(const bool& zoom)
 	{ 
 		zoomIn = zoom;
 	}

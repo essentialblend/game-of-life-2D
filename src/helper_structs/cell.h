@@ -8,6 +8,7 @@ class Cell {
 private:
 	bool isCellAlive;
 	glm::ivec2 cellCoords;
+	glm::vec2 cellOffsetVerticesXY;
 
 public:
 
@@ -16,6 +17,8 @@ public:
 		isCellAlive = false;
 		cellCoords.x = 0;
 		cellCoords.y = 0;
+		cellOffsetVerticesXY.x = 0.f;
+		cellOffsetVerticesXY.y = 0.f;
 	};
 
 	// Getters
@@ -27,6 +30,11 @@ public:
 	const glm::ivec2& getCellCoords()
 	{
 		return cellCoords;
+	}
+
+	const glm::vec2& getCellOffsetVertices()
+	{
+		return cellOffsetVerticesXY;
 	}
 
 	// Setters
@@ -45,6 +53,10 @@ public:
 	void setCellCoords(const glm::ivec2& cellC)
 	{
 		cellCoords = cellC;
+	}
+	void setCellOffsetVertices(const glm::vec2& cellV)
+	{
+		cellOffsetVerticesXY = cellV;
 	}
 	
 
