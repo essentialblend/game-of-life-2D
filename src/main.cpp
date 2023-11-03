@@ -164,7 +164,6 @@ int main()
 	nextIterationSBO.setBufferStorage((void*) nullptr, masterCellLifeStatesArray.size() * sizeof(int), GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
 	GLvoid* pMappedBufferNext = glMapNamedBufferRange(nextIterationSBO.getSSBO(), 0, masterCellLifeStatesArray.size() * sizeof(int), GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
 
-
 	// Set initial data for the persistent mapped SSBO buffers.
 	if (pMappedBufferCurrent != nullptr && pMappedBufferNext != nullptr)
 	{
@@ -201,6 +200,7 @@ int main()
 	float originalCellPosX = 0.0f;
 	float originalCellPosY = 0.0f;
 	float offX = 0.f, offY = 0.f;
+
 	computeTranslationAndVisualOffset(originalCellPosX, cellVertices, originalCellPosY, offX, offY);
 	
 	/*---- RENDER LOOP ----*/
@@ -287,29 +287,15 @@ void manageTimedActions(CallbackData& callbackData, double& lastUpdateTime, floa
 	// An update every x seconds. Main section for cell state updates
 	if (elapsedTime >= updateInterval)
 	{
-
 		// Read back from the compute shader.
 		std::vector<int> dataFromComputeShader;
 		dataFromComputeShader.clear();
-		dataFromComputeShader.resize(callbackData.gridController->getNumColumnCells() * callbackData.gridController->getNumRowCells());
-
-		/*glGetNamedBufferSubData(callbackData.currentStateSBO->getSSBO(), 0, dataFromComputeShader.size() * sizeof(int), dataFromComputeShader.data());
-
-		glGetNamedBufferSubData(callbackData.nextStateSBO->getSSBO(), 0, dataFromComputeShader.size() * sizeof(int), dataFromComputeShader.data());*/
-
-
-		//// Set a seed for mt19937.
-		//std::random_device randomDevice;
-		//std::mt19937 gen(randomDevice());
-		//std::uniform_int_distribution<> dis(0, ((8 * 10) - 1));
-		//int randomIndex = dis(gen);
-
+		dataFromComputeShader.resize(static_cast<GLint64>(callbackData.gridController->getNumColumnCells() * callbackData.gridController->getNumRowCells()));
 
 		// Dispatch compute shader and calculate states for all our cells.
 		callbackData.computeShader->UseShader();
 		callbackData.computeShader->setInt("numRowCells", callbackData.gridController->getNumRowCells());
 		callbackData.computeShader->setInt("numColumnCells", callbackData.gridController->getNumColumnCells());
-
 		glDispatchCompute(callbackData.gridController->getNumColumnCells(), callbackData.gridController->getNumRowCells(), 1);
 		
 		// Set up a fence to ensure that we read back only after the compute shader finishes computing.
@@ -320,10 +306,7 @@ void manageTimedActions(CallbackData& callbackData, double& lastUpdateTime, floa
 		// Make sure that we only access the shader storage buffer after all writes are completed.
 		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-
-		// Read back from the compute shader
-		//glGetNamedBufferSubData(callbackData.currentStateSBO->getSSBO(), 0, dataFromComputeShader.size() * sizeof(int), dataFromComputeShader.data());
-
+		// Read back from the compute shader.
 		glGetNamedBufferSubData(callbackData.nextStateSBO->getSSBO(), 0, dataFromComputeShader.size() * sizeof(int), dataFromComputeShader.data());
 
 		// Update the texture array.
@@ -331,11 +314,11 @@ void manageTimedActions(CallbackData& callbackData, double& lastUpdateTime, floa
 		// Make sure that we only access this texture after the texture fully updates.
 		glMemoryBarrier(GL_TEXTURE_UPDATE_BARRIER_BIT);
 
+		// Update our gridController instance.
 		callbackData.gridController->setMasterCellLifeStatesArray(dataFromComputeShader);
 
-		std::swap(callbackData.pMappedCurrent, callbackData.pMappedNext);
-		std::swap(*callbackData.currentStateSBO, *callbackData.nextStateSBO);
-		
+		// Copy data from next state to current state for iterational updates.
+		glCopyNamedBufferSubData(callbackData.nextStateSBO->getSSBO(), callbackData.currentStateSBO->getSSBO(), 0, 0, callbackData.gridController->getMasterCellLifeStatesArray().size() * sizeof(int));
 
 		lastUpdateTime = currentTime;
 	}
@@ -409,7 +392,7 @@ void renderGrid(Shader& mainGridShader, glm::mat4& scaleMatrix, VAO& gridVAO, Gr
 	gridVAO.bind();
 	unsigned int totalLinesToDraw = (2 * (mainGridController->getNumRowCells() - 1)) + (2 * (mainGridController->getNumColumnCells() - 1));
 	// Draw grid.
-	glLineWidth(1.25f);
+	glLineWidth(1.05f);
 	glDrawArrays(GL_LINES, 0, totalLinesToDraw);
 }
 
@@ -540,6 +523,27 @@ void glDebugOutput(GLenum source, GLenum type, unsigned int id, GLenum severity,
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
 	glViewport(0, 0, width, height);
+	//CallbackData* callbackData = static_cast<CallbackData*>(glfwGetWindowUserPointer(window));
+
+	//// Update the window resolutions.
+	//callbackData->gridController->setWindowDimensions(width, height);
+	//// Re-compute gridbox dimensions.
+	//callbackData->gridController->computeGridBoxDimensions(0.f);
+	//// Calculate cells per dimension and cell-size.
+	//callbackData->gridController->calculateCellsPerRowColumnAndCellSize();
+	//// Re-compute excess width for gridbox centering, and offsets for gridbox and mouse actions.
+	//callbackData->gridController->setExcessWidthNDCAndPixels();
+	//callbackData->gridController->setOffsetsForCenteredGridBoxAndMouseActions();
+	//// Re-init the gridbox vertices to use for instanced rendering.
+	//callbackData->gridController->computeGridboxVertices();
+	//// (Re)Re-compute gridbox dimensions post gridbox squaring and grid-centering.
+	//callbackData->gridController->computeGridBoxDimensions(callbackData->gridController->getExcessWidthForCenteringPixels());
+	//// Re-compute the grid-points and offsets for instanced rendering.
+	//callbackData->gridController->generateGridPoints();
+	//callbackData->gridController->generateInstancedOffsetsFromGrid();
+	//// TBD Update buffer data for gridbox, gridlines and offsets.
+
+
 
 }
 

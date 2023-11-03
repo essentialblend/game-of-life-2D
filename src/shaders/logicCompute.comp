@@ -11,8 +11,7 @@ layout(std430, binding = 1) buffer nextStateBuffer {
 uniform int numRowCells;
 uniform int numColumnCells;
 
-
-
+// Local sizes.
 layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
 // Prototypes
@@ -28,18 +27,9 @@ void main() {
     //nextState[yInvocationCount] = 10;
     int index1D = int(yInvocationCount * numColumnCells + xInvocationCount);
 
-
-
-    // TBD corner cells logic to wrap around.
-    if (xInvocationCount == 0 || yInvocationCount == 0 || xInvocationCount == (numColumnCells - 1) || yInvocationCount == (numRowCells - 1))
-    {
-        nextState[index1D] = 0;    
-    }
-
     // Main game logic.
     // Obtain living neighbours.
     int neighboursAlive = getNeighbourLifeStatusCount(index1D);
-    // Obtain current life status.
     int currentLifeStatus = currentState[index1D];
 
     // If we're currently alive...
@@ -68,29 +58,28 @@ void main() {
             nextState[index1D] = 1;
         }
     }
-
 }
 
-// Check all our neighboring cells and return living cells count.
 int getNeighbourLifeStatusCount(int index1D) {
     int count = 0;
 
-    // Bottom-left cell.
-    count += currentState[index1D - (numColumnCells + 1)];        
-    // Bottom-center cell.
-    count += currentState[index1D - 1];
-    // Bottom-right cell.
-    count += currentState[index1D + (numColumnCells - 1)];
-    // Middle-left cell.
-    count += currentState[index1D - numColumnCells];
-    // Middle-right cell.
-    count += currentState[index1D + numColumnCells];
-    // Top-left cell.
-    count += currentState[index1D - (numColumnCells - 1)];
-    // Top-center cell.
-    count += currentState[index1D + 1];
-    // Top-right cell.
-    count += currentState[index1D + (numColumnCells + 1)];
+    int x = index1D % numColumnCells;
+    int y = index1D / numColumnCells;
+
+    // Define the offsets for the eight neighboring cells
+    int offsets[8][2] = {
+        {-1, -1}, {0, -1}, {1, -1},
+        {-1,  0},          {1,  0},
+        {-1,  1}, {0,  1}, {1,  1}
+    };
+
+    // Calculate how many neighbouring cells are alive.
+    for(int i = 0; i < 8; i++) {
+        int neighborX = (x + offsets[i][0] + numColumnCells) % numColumnCells;
+        int neighborY = (y + offsets[i][1] + numRowCells) % numRowCells;
+        int neighborIndex = neighborY * numColumnCells + neighborX;
+        count += currentState[neighborIndex];
+    }
 
     return count;
 }
