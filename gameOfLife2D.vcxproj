@@ -166,6 +166,7 @@
     <ClInclude Include="src\headers\texture.h" />
     <ClInclude Include="src\headers\VAO.h" />
     <ClInclude Include="src\headers\VBO.h" />
+    <ClInclude Include="src\helper_structs\callbackData.h" />
     <ClInclude Include="src\helper_structs\cell.h" />
     <ClInclude Include="src\helper_structs\character.h" />
   </ItemGroup>

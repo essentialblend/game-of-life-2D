@@ -18,7 +18,8 @@ RBO& RBO::operator=(RBO&& other) noexcept {
 
         // Transfer ownership from other
         id = other.id;
-        other.id = 0; // Reset the moved-from object's ID
+        // Reset the moved-from object's ID
+        other.id = 0; 
     }
     return *this;
 }

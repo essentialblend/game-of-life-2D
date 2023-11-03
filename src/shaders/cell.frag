@@ -9,16 +9,12 @@ out vec4 FragColor;
 
 void main() {
 
+    vec3 offColor = vec3(0.824f, 0.824f, 0.824f);
+    vec3 onColor = vec3(1.f, 0.f, 0.f);
+
     int lifeState = texelFetch(cellLifeStates, vCellIndex.yx, 0).r;
 
-    if (lifeState == 0)
-    {
-        FragColor = vec4(0.824f, 0.824f, 0.824f, 1.0f);
-    }
-    else if (lifeState == 1)
-    {
-        FragColor = vec4(1.f, 0.0f, 0.0f, 1.0f);
-    }
+    FragColor = vec4(lifeState == 1 ? onColor : offColor, 1.f);
     
     //FragColor = vec4(0.824f, 0.824f, 0.824f, 1.0f);
 }

@@ -16,39 +16,31 @@ constexpr unsigned int WIN_HEIGHT = 600;
 constexpr unsigned int WIN_WIDTH = 800;
 
 // Number of cells per column (fixed). This is then used to determine how many cells we can fit in a row to help maintain perfectly squared grid cells.
-constexpr int INIT_COLUMN_CELLS = 8 * 2;
+constexpr int INIT_COLUMN_CELLS = 8 * 5;
 // Used to determine the initial size of the grid-box relative to the entire window. 
 constexpr float GRIDBOX_SIZE_SPAN = 0.85f;
 // Scale factor used to contain the cell within the grid (instead of on it).
 constexpr float CELL_SCALE_FACTOR = 1.f;
 
 // Iteration update frequency.
-constexpr float ITERATION_UPDATE_FREQ = 8;
-
-// Struct for pointers to objects needed throughout run-time. (Helps avoid globals.)
-
-struct CallbackData
-{
-	GridController* gridController;
-	SSBO* nextIterationSBO;
-};
+constexpr float ITERATION_UPDATE_FREQ = 2;
 
 // Function prototypes.
 void initialize_glfw_mainWindow();
 int main();
 void computeTranslationAndVisualOffset(float& originalCellPosX, std::vector<float>& cellVertices, float& originalCellPosY, float& offX, float& offY);
-void manageTimedActions(GridController& mainGridController, double& lastUpdateTime, Shader& computeShader, SSBO& currentIterationSBO, SSBO& nextIterationSBO, const TextureObject& cellStatesTexture, float iterationUpdateFrequency, int& count);
+void manageTimedActions(CallbackData& callbackData, double& lastUpdateTime, float iterationUpdateFrequency);
 void setupCell(GridController* mainGridController, std::vector<Cell>& masterCellList, VBO& cellVBO, VAO& cellVAO, VBO& cellInstancesVBO, VBO& cellIVBO);
 void renderGrid(Shader& mainGridShader, glm::mat4& scaleMatrix, VAO& gridVAO, GridController* mainGridController);
 void renderGridBox(Shader& gridBoxShader, VAO& gridBoxVAO, GridController* mainGridController);
 //int setupTextRenderingWithFreeType(FT_Library& freeTypeMainObject, FT_Face& fontFaceParchment, std::map<GLchar, Character>& masterMap);
-void processInput(GLFWwindow* window);
 
 //Opengl function prototypes
 void APIENTRY glDebugOutput(GLenum source, GLenum type, unsigned int id, GLenum severity,
 	GLsizei length, const char* message, const void* userParam);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
 int main()
 {
@@ -81,7 +73,9 @@ int main()
 
 	// Set callback functions.
 	glfwSetFramebufferSizeCallback(mainWindow, framebuffer_size_callback);
+	glfwSetInputMode(mainWindow, GLFW_STICKY_MOUSE_BUTTONS, GLFW_TRUE);
 	glfwSetMouseButtonCallback(mainWindow, mouse_button_callback);
+	glfwSetKeyCallback(mainWindow, key_callback);
 
 	// Initialize GLAD.
 	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -160,14 +154,22 @@ int main()
 	// Buffer setup for the compute shader.
 	SSBO currentIterationSBO, nextIterationSBO;
 
-	currentIterationSBO.setupSSBOPersistentMappedBuffer(0, (masterCellLifeStatesArray.size() * sizeof(int)));
-	nextIterationSBO.setupSSBOPersistentMappedBuffer(1, (masterCellLifeStatesArray.size() * sizeof(int)));
+	// Set up persistent mapped buffer for the current iteration buffer.
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, currentIterationSBO.getSSBO());
+	currentIterationSBO.setBufferStorage((void*) nullptr, masterCellLifeStatesArray.size() * sizeof(int), GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+	GLvoid* pMappedBufferCurrent = glMapNamedBufferRange(currentIterationSBO.getSSBO(), 0, masterCellLifeStatesArray.size() * sizeof(int), GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+
+	// Set up persistent mapped buffer for the next iteration buffer.
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, nextIterationSBO.getSSBO());
+	nextIterationSBO.setBufferStorage((void*) nullptr, masterCellLifeStatesArray.size() * sizeof(int), GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+	GLvoid* pMappedBufferNext = glMapNamedBufferRange(nextIterationSBO.getSSBO(), 0, masterCellLifeStatesArray.size() * sizeof(int), GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
+
 
 	// Set initial data for the persistent mapped SSBO buffers.
-	if (currentIterationSBO.getPersistentlyMappedBuffer() && nextIterationSBO.getPersistentlyMappedBuffer() != nullptr)
+	if (pMappedBufferCurrent != nullptr && pMappedBufferNext != nullptr)
 	{
-		std::memcpy(currentIterationSBO.getPersistentlyMappedBuffer(), masterCellLifeStatesArray.data(), masterCellLifeStatesArray.size() * sizeof(int));
-		std::memcpy(nextIterationSBO.getPersistentlyMappedBuffer(), masterCellLifeStatesArray.data(), masterCellLifeStatesArray.size() * sizeof(int));
+		std::memcpy(pMappedBufferCurrent, masterCellLifeStatesArray.data(), masterCellLifeStatesArray.size() * sizeof(int));
+		std::memcpy(pMappedBufferNext, masterCellLifeStatesArray.data(), masterCellLifeStatesArray.size() * sizeof(int));
 	}
 	else
 	{
@@ -184,7 +186,13 @@ int main()
 	// Set callback data to obtain pointers from our window.
 	CallbackData* mainData = new CallbackData;
 	mainData->gridController = mainGridController;
-	mainData->nextIterationSBO = &nextIterationSBO;
+	mainData->currentStateSBO = &currentIterationSBO;
+	mainData->nextStateSBO = &nextIterationSBO;
+	mainData->pMappedCurrent = pMappedBufferCurrent;
+	mainData->pMappedNext = pMappedBufferNext;
+	mainData->computeShader = &gameLogicComputeShader;
+	mainData->isIterating = false;
+
 	// Set the pointers.
 	glfwSetWindowUserPointer(mainWindow, mainData);
 
@@ -194,12 +202,10 @@ int main()
 	float originalCellPosY = 0.0f;
 	float offX = 0.f, offY = 0.f;
 	computeTranslationAndVisualOffset(originalCellPosX, cellVertices, originalCellPosY, offX, offY);
-
-	int count = 0;
+	
 	/*---- RENDER LOOP ----*/
 	while (!glfwWindowShouldClose(mainWindow))
 	{
-		processInput(mainWindow);
 
 		// Set the color to clear the screen.
 		glClearColor(0.33f, 0.33f, 0.33f, 1.f);
@@ -214,8 +220,9 @@ int main()
 		// Render the grid-box that contains the base grid.
 		renderGridBox(gridBoxShader, gridBoxVAO, mainGridController);
 
-		// Handle cell state (or any other time-based action) execution. (Important!!)
-		manageTimedActions(*mainGridController, lastUpdateTime, gameLogicComputeShader, currentIterationSBO, nextIterationSBO, mainGridController->getCellStatesTextureObject(), ITERATION_UPDATE_FREQ, count);
+		// Handle cell state (or any other time-based action) execution.
+		if(mainData->isIterating == true)
+			manageTimedActions(*mainData, lastUpdateTime, ITERATION_UPDATE_FREQ);
 
 
 		// Bind VAO.
@@ -240,7 +247,11 @@ int main()
 	}
 	
 	// Memory management.
-	glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+	// Delete the callback struct instance.
+	delete mainData;
+	// Delete the SSBOs (takes care of our PMBs).
+	glUnmapNamedBuffer(currentIterationSBO.getSSBO());
+	glUnmapNamedBuffer(nextIterationSBO.getSSBO());
 
 	glfwTerminate();
 	return 0;
@@ -266,7 +277,7 @@ void computeTranslationAndVisualOffset(float& originalCellPosX, std::vector<floa
 	offY = (1.f - CELL_SCALE_FACTOR) * originalCellPosY;
 }
 
-void manageTimedActions(GridController& mainGridController, double& lastUpdateTime, Shader& computeShader, SSBO& currentIterationSBO, SSBO& nextIterationSBO, const TextureObject& cellStatesTexture, float iterationUpdateFrequency, int& count)
+void manageTimedActions(CallbackData& callbackData, double& lastUpdateTime, float iterationUpdateFrequency)
 {
 	// Update elapsed time. 
 	double currentTime = glfwGetTime();
@@ -276,29 +287,55 @@ void manageTimedActions(GridController& mainGridController, double& lastUpdateTi
 	// An update every x seconds. Main section for cell state updates
 	if (elapsedTime >= updateInterval)
 	{
-		// Set a seed for mt19937.
-		std::random_device randomDevice;
-		std::mt19937 gen(randomDevice());
-		std::uniform_int_distribution<> dis(0, ((8 * 10) - 1));
-		int randomIndex = dis(gen);
-
-		// Swap states (COMPUTE SHADER DEMO)
-		/*computeShader.UseShader();
-		computeShader.setInt("randomIndex", randomIndex);
-		glDispatchCompute(1, 1, 1);
-		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);*/
 
 		// Read back from the compute shader.
-		std::vector<int> newCellStates;
-		newCellStates.clear();
-		newCellStates.resize(GLint64(mainGridController.getNumColumnCells() * mainGridController.getNumRowCells()));
+		std::vector<int> dataFromComputeShader;
+		dataFromComputeShader.clear();
+		dataFromComputeShader.resize(callbackData.gridController->getNumColumnCells() * callbackData.gridController->getNumRowCells());
 
-		//glGetNamedBufferSubData(nextIterationSBO.getSSBO(), 0, newCellStates.size() * sizeof(int), newCellStates.data());
+		/*glGetNamedBufferSubData(callbackData.currentStateSBO->getSSBO(), 0, dataFromComputeShader.size() * sizeof(int), dataFromComputeShader.data());
+
+		glGetNamedBufferSubData(callbackData.nextStateSBO->getSSBO(), 0, dataFromComputeShader.size() * sizeof(int), dataFromComputeShader.data());*/
+
+
+		//// Set a seed for mt19937.
+		//std::random_device randomDevice;
+		//std::mt19937 gen(randomDevice());
+		//std::uniform_int_distribution<> dis(0, ((8 * 10) - 1));
+		//int randomIndex = dis(gen);
+
+
+		// Dispatch compute shader and calculate states for all our cells.
+		callbackData.computeShader->UseShader();
+		callbackData.computeShader->setInt("numRowCells", callbackData.gridController->getNumRowCells());
+		callbackData.computeShader->setInt("numColumnCells", callbackData.gridController->getNumColumnCells());
+
+		glDispatchCompute(callbackData.gridController->getNumColumnCells(), callbackData.gridController->getNumRowCells(), 1);
 		
-		// Update the texture array.
-		//glTextureSubImage2D(cellStatesTexture.getTextureObjectID(), 0, 0, 0, mainGridController.getNumColumnCells(), mainGridController.getNumRowCells(), GL_RED_INTEGER, GL_INT, newCellStates.data());
+		// Set up a fence to ensure that we read back only after the compute shader finishes computing.
+		GLsync computeShaderSync = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+		glClientWaitSync(computeShaderSync, GL_SYNC_FLUSH_COMMANDS_BIT, GLuint64(GL_TIMEOUT_IGNORED));
+		glDeleteSync(computeShaderSync);
+		
+		// Make sure that we only access the shader storage buffer after all writes are completed.
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-		//std::swap(currentIterationSBO, nextIterationSBO);
+
+		// Read back from the compute shader
+		//glGetNamedBufferSubData(callbackData.currentStateSBO->getSSBO(), 0, dataFromComputeShader.size() * sizeof(int), dataFromComputeShader.data());
+
+		glGetNamedBufferSubData(callbackData.nextStateSBO->getSSBO(), 0, dataFromComputeShader.size() * sizeof(int), dataFromComputeShader.data());
+
+		// Update the texture array.
+		glTextureSubImage2D(callbackData.gridController->getCellStatesTextureObject().getTextureObjectID(), 0, 0, 0, callbackData.gridController->getNumColumnCells(), callbackData.gridController->getNumRowCells(), GL_RED_INTEGER, GL_INT, dataFromComputeShader.data());
+		// Make sure that we only access this texture after the texture fully updates.
+		glMemoryBarrier(GL_TEXTURE_UPDATE_BARRIER_BIT);
+
+		callbackData.gridController->setMasterCellLifeStatesArray(dataFromComputeShader);
+
+		std::swap(callbackData.pMappedCurrent, callbackData.pMappedNext);
+		std::swap(*callbackData.currentStateSBO, *callbackData.nextStateSBO);
+		
 
 		lastUpdateTime = currentTime;
 	}
@@ -358,6 +395,7 @@ void setupCell(GridController* mainGridController, std::vector<Cell>& masterCell
 	glVertexArrayBindingDivisor(cellVAO.getVAO(), 1, 1);
 	// For the cell indices.
 	glVertexArrayBindingDivisor(cellVAO.getVAO(), 2, 1);
+	
 }
 
 void renderGrid(Shader& mainGridShader, glm::mat4& scaleMatrix, VAO& gridVAO, GridController* mainGridController)
@@ -505,53 +543,28 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 
 }
 
-void processInput(GLFWwindow* window)
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+	CallbackData* callbackData = static_cast<CallbackData*>(glfwGetWindowUserPointer(window));
+
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 	{
 		glfwSetWindowShouldClose(window, true);
 	}
-	if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
-	{
-		
-	}
-	if (glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS)
-	{
 
-
-	}
-	if (glfwGetKey(window, GLFW_KEY_MINUS) == GLFW_PRESS)
+	if (key == GLFW_KEY_I && action == GLFW_PRESS)
 	{
-
-	
-	}
-	if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
-	{
-
-	}
-	if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
-	{
-
-	}
-	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS)
-	{
-
-	}
-	if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS)
-	{
-
+		callbackData->isIterating = !callbackData->isIterating;
 	}
 }
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 {
-	CallbackData* cbData = static_cast<CallbackData*>(glfwGetWindowUserPointer(window));
-
+	CallbackData* callbackData = static_cast<CallbackData*>(glfwGetWindowUserPointer(window));
 	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
 	{
-		// Activate / deactivate a cell.
-		int key = GLFW_MOUSE_BUTTON_LEFT;
-		cbData->gridController->processInput(&key, *window, *cbData->nextIterationSBO);
+		bool retFlag = false;
+		callbackData->gridController->activateCell(*window, retFlag, callbackData);
 	}
 }
 

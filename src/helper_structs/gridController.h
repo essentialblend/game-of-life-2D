@@ -8,6 +8,10 @@
 #include "../headers/EBO.h"
 #include "../headers/SSBO.h"
 #include "../headers/texture.h"
+#include "../headers/shader.h"
+
+#include "callbackData.h"
+
 #include "cell.h"
 
 #include <GLFWLib/glfw3.h>
@@ -42,7 +46,7 @@ private:
 	// Used as a base position for instanced rendering.
 	std::vector<float> verticesForBaseCell;
 	TextureObject cellStatesTextureBuffer;
-	std::vector<int> masterCellLifeStatesArray;
+	std::vector<int> masterCellCurrentLifeStatesArray;
 
 
 	void generateGridPoints()
@@ -198,7 +202,7 @@ public:
 		gridBoxQuadIndicesArray.clear();
 		masterCellList.clear();
 		verticesForBaseCell.clear();
-		masterCellLifeStatesArray.clear();
+		masterCellCurrentLifeStatesArray.clear();
 
 		// Generate gridBox dimensions
 		computeGridBoxDimensions(0.f);
@@ -236,10 +240,10 @@ public:
 		// Generate cell vertices from gridpoints
 		generateInstancedOffsetsFromGrid();
 
-		masterCellLifeStatesArray.resize((GLint64)(numColumnCells * numRowCells));
+		masterCellCurrentLifeStatesArray.resize(0);
 		for (Cell& cell : masterCellList)
 		{
-			masterCellLifeStatesArray.push_back(cell.getCellLifeStatus());
+			masterCellCurrentLifeStatesArray.push_back(cell.getCellLifeStatus());
 		}
 
 		// Setup the texture we use as a buffer to pass lifestates to the fragment shader, used to enable instanced rendering.
@@ -250,7 +254,7 @@ public:
 	{
 		cellStatesTextureBuffer.setParameters(GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_NEAREST, GL_NEAREST, true);
 		glTextureStorage2D(cellStatesTextureBuffer.getTextureObjectID(), 1, GL_R32I, numColumnCells, numRowCells);
-		glTextureSubImage2D(cellStatesTextureBuffer.getTextureObjectID(), 0, 0, 0, numColumnCells, numRowCells, GL_RED_INTEGER, GL_INT, (void*)masterCellLifeStatesArray.data());
+		glTextureSubImage2D(cellStatesTextureBuffer.getTextureObjectID(), 0, 0, 0, numColumnCells, numRowCells, GL_RED_INTEGER, GL_INT, (void*)masterCellCurrentLifeStatesArray.data());
 	}
 
 	void setupGridBox(VAO& gridBVAO, VBO& gridBVBO)
@@ -301,35 +305,36 @@ public:
 		glVertexArrayAttribBinding(gridVAO.getVAO(), 0, 0);
 	}
 
-	void processInput(const int* key, GLFWwindow& mainWindow, SSBO& nextIterationSBO)
+	void activateCell(GLFWwindow& mainWindow, bool& retFlag, CallbackData* callbackData)
 	{
-		switch (*key) {
-			case GLFW_KEY_EQUAL:
-				break;
-			case GLFW_KEY_MINUS:
-				break;
-			case GLFW_KEY_LEFT:
-				break;
-			case GLFW_KEY_RIGHT:
-				break;
-			case GLFW_KEY_UP:
-				break;
-			case GLFW_KEY_DOWN:
-				break;
-			case GLFW_MOUSE_BUTTON_LEFT:
-				bool retFlag;
-				activateCell(mainWindow, retFlag, nextIterationSBO);
-				if (retFlag) return;
-				break;
-		}
-	}
 
-	void activateCell(GLFWwindow& mainWindow, bool& retFlag, SSBO& nextIterationSBO)
-	{
+		std::vector<int> testA;
+		testA.clear();
+		testA.resize(static_cast<GLint64>(numColumnCells * numRowCells));
+
+		/*glGetNamedBufferSubData(callbackData->currentStateSBO->getSSBO(), 0, testA.size() * sizeof(int), testA.data());
+		glGetNamedBufferSubData(callbackData->nextStateSBO->getSSBO(), 0, testA.size() * sizeof(int), testA.data());*/
+		glMemoryBarrier(GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT);
+		//int* currentArrayFromPointer = static_cast<int*>(callbackData->pMappedCurrent);
+		//for (int i = 0; i < 80; i++)
+		//{
+		//	testA[i] = currentArrayFromPointer[i];
+		//}
+
+		//int* nextArrayFromPointer = static_cast<int*>(callbackData->pMappedNext);
+		//for (int i = 0; i < 80; i++)
+		//{
+		//	testA[i] = nextArrayFromPointer[i];
+		//}
+
+		glGetNamedBufferSubData(callbackData->nextStateSBO->getSSBO(), 0, testA.size() * sizeof(int), testA.data());
+
 		retFlag = true;
 		double pixelMouseX = 0, pixelMouseY = 0;
+		// Obtain cursor position coordinates.
 		glfwGetCursorPos(&mainWindow, &pixelMouseX, &pixelMouseY);
 
+		// Convert to be consistent with the grid-representation. For this implementation, the bottom left most cell is 0, 0. The cell right above 0, 0 is 0, 1..... upto 0, (numColumnCells - 1). The cell right of 0, 0 is 1, 0 .... upto (numRowCells - 1), 0 for the first (bottom most) row. 
 		pixelMouseY = windowHeight - pixelMouseY;
 
 		// Check if mouse click was inside the grid-box
@@ -341,7 +346,7 @@ public:
 		double gridX = ((pixelMouseX - offsetForMouseInGridCheck) - minQuadX) / cellSize;
 		double gridY = (pixelMouseY - minQuadY) / cellSize;
 
-		// Band-aid fix to prevent erroneous detection / runtime crashes.
+		// Band-aid fix to prevent erroneous detection and runtime crashes.
 		if (gridX < 0)
 			return;
 
@@ -351,19 +356,26 @@ public:
 		// Convert the 2D index to a 1D index to use for our lifestates array.
 		int index1D = clickedCellRowColumn.x * numColumnCells + clickedCellRowColumn.y;
 
-		if (masterCellLifeStatesArray[index1D] == 0)
+		// Reflect the changes in our master life states array for the grid-controller instance.
+		if (masterCellCurrentLifeStatesArray[index1D] == 0)
 		{
-			masterCellLifeStatesArray[index1D] = 1;
+			masterCellCurrentLifeStatesArray[index1D] = 1;
 		}
 		else
 		{
-			masterCellLifeStatesArray[index1D] = 0;
+			masterCellCurrentLifeStatesArray[index1D] = 0;
 		}
-
-		//glGetNamedBufferSubData(nextIterationSBO.getSSBO(), 0, newCellStates.size() * sizeof(int), newCellStates.data());
-		
+		// Update the currentIterationSSBO content so the compute shader correctly uses it for the next iteration update.
+		GLsync fenceVar = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+		glClientWaitSync(fenceVar, GL_SYNC_FLUSH_COMMANDS_BIT, GL_TIMEOUT_IGNORED);
+		glDeleteSync(fenceVar);
+		std::memcpy(callbackData->pMappedCurrent, masterCellCurrentLifeStatesArray.data(), masterCellCurrentLifeStatesArray.size() * sizeof(int));
+		//glMemoryBarrier(GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT);
 		// Update the texture array.
-		glTextureSubImage2D(cellStatesTextureBuffer.getTextureObjectID(), 0, 0, 0, numColumnCells, numRowCells, GL_RED_INTEGER, GL_INT, masterCellLifeStatesArray.data());
+		glTextureSubImage2D(callbackData->gridController->getCellStatesTextureObject().getTextureObjectID(), 0, 0, 0, callbackData->gridController->getNumColumnCells(), callbackData->gridController->getNumRowCells(), GL_RED_INTEGER, GL_INT, masterCellCurrentLifeStatesArray.data());
+		// Make sure that we only access this texture after the texture fully updates.
+		glMemoryBarrier(GL_TEXTURE_UPDATE_BARRIER_BIT);
+		
 
 		for (Cell& cell : masterCellList)
 		{
@@ -371,9 +383,9 @@ public:
 			if (currentCellCoords == static_cast<glm::ivec2>(clickedCellRowColumn))
 			{
 				std::cout << "Cell clicked: " << clickedCellRowColumn.x << " - " << clickedCellRowColumn.y << "\n";
+				std::cout << "1D Index: " << index1D << "\n\n";
 			}
-		}
-
+		}	
 		retFlag = false;
 	}
 
@@ -450,6 +462,10 @@ public:
 	{
 		return cellStatesTextureBuffer;
 	}
+	const std::vector<int> getMasterCellLifeStatesArray()
+	{
+		return masterCellCurrentLifeStatesArray;
+	}
 
 	// Setters
 	void setZoomFactor(const float zoomF)
@@ -475,5 +491,9 @@ public:
 	void setZoomInBool(const bool& zoom)
 	{ 
 		zoomIn = zoom;
+	}
+	void setMasterCellLifeStatesArray(const std::vector<int>& lifeStatesArray)
+	{
+		masterCellCurrentLifeStatesArray = lifeStatesArray;
 	}
 };

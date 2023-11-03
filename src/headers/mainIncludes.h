@@ -1,5 +1,7 @@
 #pragma once
 
+#pragma warning( disable: 4100 )
+
 #include <vector>
 #include <algorithm>
 #include <map>

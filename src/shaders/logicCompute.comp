@@ -8,21 +8,89 @@ layout(std430, binding = 1) buffer nextStateBuffer {
     int nextState[];
 };
 
-uniform int randomIndex;
+uniform int numRowCells;
+uniform int numColumnCells;
+
+
 
 layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
+// Prototypes
+int getNeighbourLifeStatusCount(int index1D);
+
 void main() {
-    
+
     int arraySize = currentState.length();
-    
-    // Set only the random cell to 1, all others to 0
-    for (int i = 0; i < arraySize; ++i) {
-        if (i == randomIndex) {
-            nextState[i] = 1;
-        } else {
-            nextState[i] = 0;
+
+    uint xInvocationCount = gl_GlobalInvocationID.x;
+    //nextState[xInvocationCount] = 10;
+    uint yInvocationCount = gl_GlobalInvocationID.y;
+    //nextState[yInvocationCount] = 10;
+    int index1D = int(yInvocationCount * numColumnCells + xInvocationCount);
+
+
+
+    // TBD corner cells logic to wrap around.
+    if (xInvocationCount == 0 || yInvocationCount == 0 || xInvocationCount == (numColumnCells - 1) || yInvocationCount == (numRowCells - 1))
+    {
+        nextState[index1D] = 0;    
+    }
+
+    // Main game logic.
+    // Obtain living neighbours.
+    int neighboursAlive = getNeighbourLifeStatusCount(index1D);
+    // Obtain current life status.
+    int currentLifeStatus = currentState[index1D];
+
+    // If we're currently alive...
+    if (currentLifeStatus == 1)
+    {   
+        // ...and have less than 2 or greater than 3 living neighbours...
+        if (neighboursAlive < 2 || neighboursAlive > 3)
+        {
+            // ...then, we perish.
+            nextState[index1D] = 0;
+        }
+        // ...and have exactly 2 or 3 living neighbours...
+        else if (neighboursAlive == 2 || neighboursAlive == 3)
+        {
+            // ...then, we live.
+            nextState[index1D] = 1;
+        }
+    }
+    // Or, if we're currently dead...
+    else if (currentLifeStatus == 0)
+    {
+        // ...and have exactly three living neighbours...
+        if (neighboursAlive == 3)
+        {
+            // ...then, we come alive next iteration.
+            nextState[index1D] = 1;
         }
     }
 
+}
+
+// Check all our neighboring cells and return living cells count.
+int getNeighbourLifeStatusCount(int index1D) {
+    int count = 0;
+
+    // Bottom-left cell.
+    count += currentState[index1D - (numColumnCells + 1)];        
+    // Bottom-center cell.
+    count += currentState[index1D - 1];
+    // Bottom-right cell.
+    count += currentState[index1D + (numColumnCells - 1)];
+    // Middle-left cell.
+    count += currentState[index1D - numColumnCells];
+    // Middle-right cell.
+    count += currentState[index1D + numColumnCells];
+    // Top-left cell.
+    count += currentState[index1D - (numColumnCells - 1)];
+    // Top-center cell.
+    count += currentState[index1D + 1];
+    // Top-right cell.
+    count += currentState[index1D + (numColumnCells + 1)];
+
+    return count;
 }

@@ -95,7 +95,7 @@ public:
 		}
 		catch (std::ifstream::failure& exc)
 		{
-			std::cout << "ERROR: Shader file read failed!" << std::endl;
+			std::cout << "ERROR: Shader file read failed!" << exc.what() << std::endl;
 		}
 
 		const char* computeShaderCodeText = computeShaderCode.c_str();
