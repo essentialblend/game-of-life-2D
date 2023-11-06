@@ -29,12 +29,12 @@ private:
 	bool zoomIn;
 	std::vector<float> gridPointsArray;
 	// Window variables
-	unsigned int windowWidth, windowHeight;
+	int windowWidth, windowHeight;
 	/*Grid-box quad dimension variables*/
 	float minQuadX, maxQuadX, minQuadY, maxQuadY;
 	float quadWidth, quadHeight;
 	float centerOffsetPostGridBoxResize;
-	float offsetForMouseInGridCheck = 0.f;
+	float offsetForMouseInGridCheck;
 	// Gridbox size: 0.85 means the quad spans an NDC distance of -0.85 to 0.85
 	float cellSize, gridBoxSize;
 	std::vector<float> gridBoxQuadVerticesArray;
@@ -49,6 +49,8 @@ private:
 	std::vector<int> masterCellCurrentLifeStatesArray;
 	float excessWidth_Pixels;
 	float excessWidth_NDC;
+	float scaleOffsetX, scaleOffsetY;
+	float cellScaleFactor;
 
 public:
 	GridController(const unsigned int wW, const unsigned int wH, const float gridBS, const int numRC)
@@ -73,70 +75,175 @@ public:
 		cellIndicesVertexAttribute.y = 0;
 		excessWidth_Pixels = 0.f;
 		excessWidth_NDC = 0.f;
-
-		// Clear the arrays
-		gridPointsArray.clear();
-		gridBoxQuadVerticesArray.clear();
-		gridBoxQuadIndicesArray.clear();
-		masterCellList.clear();
-		verticesForBaseCell.clear();
-		masterCellCurrentLifeStatesArray.clear();
-
-		// Generate gridBox dimensions
-		computeGridBoxDimensions(0.f);
-
-		// Calculate cells per dimension and cell-size.
-		float smallestDimension = static_cast<float>(std::min(quadHeight, quadWidth));
-		cellSize = smallestDimension / numColumnCells;
-		numRowCells = static_cast<int>(quadWidth / cellSize);
-		numColumnCells = static_cast<int>(quadHeight / cellSize);
-
-		// Account for perfectly squared grid cells
-		// setExcessWidthNDCAndPixels();
-		excessWidth_Pixels = static_cast<float>(quadWidth - (cellSize * (numRowCells)));
-		excessWidth_NDC = static_cast<float>((2.f * (excessWidth_Pixels / windowWidth)));
-
-		// Set the offsets for post-squared centered grid-box and for mouse-actions.
-		// setOffsetsForCenteredGridBoxAndMouseActions();
-		centerOffsetPostGridBoxResize = excessWidth_NDC * 0.5f;
-		offsetForMouseInGridCheck = excessWidth_Pixels * 0.5f;
-
-		// Init grid-box vertices and indices.
-		// computeGridboxVertices();
-		gridBoxQuadVerticesArray = {
-			static_cast<float>((gridBoxSize - excessWidth_NDC) + centerOffsetPostGridBoxResize), static_cast<float>(gridBoxSize), 0.f,
-			static_cast<float>((gridBoxSize - excessWidth_NDC) + centerOffsetPostGridBoxResize), static_cast<float>(-gridBoxSize), 0.f,
-			static_cast<float>(-gridBoxSize + centerOffsetPostGridBoxResize), static_cast<float>(-gridBoxSize), 0.f,
-			static_cast<float>(-gridBoxSize + centerOffsetPostGridBoxResize), static_cast<float>(gridBoxSize), 0.f
-		};
+		scaleOffsetX = 0.f;
+		scaleOffsetY = 0.f;
+		cellScaleFactor = 1.f;
+		offsetForMouseInGridCheck = 0.f;
 
 		gridBoxQuadIndicesArray = {
 			0, 1, 3,
 			1, 2, 3
 		};
 
-		// Compute gridbox dimensions 
-		computeGridBoxDimensions(excessWidth_Pixels);
-
-		// Generate grid-points
-		generateGridPoints();
-
-		// Generate cell vertices from gridpoints
-		generateInstancedOffsetsFromGrid();
+		// Generate our gridbox and grid.
+		generateGridBoxAndGrid(false);
 
 		masterCellCurrentLifeStatesArray.resize(0);
 		for (Cell& cell : masterCellList)
 		{
 			masterCellCurrentLifeStatesArray.push_back(cell.getCellLifeStatus());
 		}
-
 		// Setup the texture we use as a buffer to pass lifestates to the fragment shader, used to enable instanced rendering.
 		setupTextureForFragShaderLifeStatesBuffer();
+
+	}
+
+	void generateGridBoxAndGrid(bool isFrameBufferResize)
+	{
+		if (!isFrameBufferResize)
+		{
+			// Clear the arrays
+			clearArraysPreInit();
+
+			// Generate gridBox dimensions
+			computeGridBoxDimensions(0.f);
+
+			// Calculate cells per dimension and cell-size.
+			float smallestDimension = static_cast<float>(std::min(quadHeight, quadWidth));
+			calculateCellSizeAndCellsPerDimension(smallestDimension);
+
+			// Account for perfectly squared grid cells.
+			computeExcessWidthForGridSquaring();
+
+			// Set the offsets for post-squared centered grid-box and for mouse-actions.
+			setOffsetsForCenteredGridBoxAndMouseActions();
+
+			// Init grid-box vertices and indices.
+			computeGridBoxQuadVertices();
+
+			// Compute gridbox dimensions 
+			computeGridBoxDimensions(excessWidth_Pixels);
+
+			// Generate grid-points
+			generateGridPoints();
+
+			// Generate cell vertices from gridpoints
+			generateInstancedOffsetsFromGrid();
+
+			// Compute offset to account for cell scaling.
+			computeTranslationAndVisualOffset();
+		}
+		else
+		{
+			// Clear the arrays
+			clearAndResizeArraysForWindowResize();
+
+			// Generate gridBox dimensions
+			computeGridBoxDimensions(0.f);
+
+			// Calculate cells per dimension and cell-size.
+			float smallestDimension = static_cast<float>(std::min(quadHeight, quadWidth));
+			calculateCellSizeAndCellsPerDimension(smallestDimension);
+
+			// Account for perfectly squared grid cells.
+			computeExcessWidthForGridSquaring();
+
+			// Set the offsets for post-squared centered grid-box and for mouse-actions.
+			setOffsetsForCenteredGridBoxAndMouseActions();
+
+			// Init grid-box vertices and indices.
+			computeGridBoxQuadVertices();
+
+			// Compute gridbox dimensions 
+			computeGridBoxDimensions(excessWidth_Pixels);
+
+			// Generate grid-points
+			generateGridPoints();
+
+			// Generate cell vertices from gridpoints
+			generateInstancedOffsetsFromGrid();
+
+			// Compute offset to account for cell scaling.
+			computeTranslationAndVisualOffset();
+		}
+	}
+
+	void clearArraysPreInit()
+	{
+		gridPointsArray.clear();
+		gridBoxQuadVerticesArray.clear();
+		masterCellList.clear();
+		verticesForBaseCell.clear();
+		masterCellCurrentLifeStatesArray.clear();
+	}
+
+	void clearAndResizeArraysForWindowResize()
+	{
+		gridPointsArray.clear();
+		gridPointsArray.resize(0);
+		gridBoxQuadVerticesArray.clear();
+		gridBoxQuadVerticesArray.resize(0);
+		verticesForBaseCell.clear();
+		verticesForBaseCell.resize(0);
+	}
+
+
+	void setOffsetsForCenteredGridBoxAndMouseActions()
+	{
+		centerOffsetPostGridBoxResize = excessWidth_NDC * 0.5f;
+		offsetForMouseInGridCheck = excessWidth_Pixels * 0.5f;
+	}
+
+	void computeTranslationAndVisualOffset()
+	{
+		float originalCellPosX = 0.f;
+		float originalCellPosY = 0.f;
+
+		// Calculate the average x and y position of the vertices to find the center position of the cell.
+		for (int i = 0; i < 12; i += 3) {
+			originalCellPosX += verticesForBaseCell[i];
+			originalCellPosY += verticesForBaseCell[static_cast<GLint64>(i + 1)];
+		}
+
+		// Divide by the number of vertices to get the average x-coordinate.
+		originalCellPosX /= 4;
+		// Divide by the number of vertices to get the average y-coordinate.
+		originalCellPosY /= 4;
+
+		float additionalOffsetX = /*-0.0015f*/ 0.f;
+
+		// Used to correct scaling (which happens around the origin).
+		scaleOffsetX = ((1.f - cellScaleFactor) * originalCellPosX) - additionalOffsetX;
+		scaleOffsetY = (1.f - cellScaleFactor) * originalCellPosY;
+	}
+
+	void computeGridBoxQuadVertices()
+	{
+		gridBoxQuadVerticesArray = {
+			static_cast<float>((gridBoxSize - excessWidth_NDC) + centerOffsetPostGridBoxResize), static_cast<float>(gridBoxSize), 0.f,
+			static_cast<float>((gridBoxSize - excessWidth_NDC) + centerOffsetPostGridBoxResize), static_cast<float>(-gridBoxSize), 0.f,
+			static_cast<float>(-gridBoxSize + centerOffsetPostGridBoxResize), static_cast<float>(-gridBoxSize), 0.f,
+			static_cast<float>(-gridBoxSize + centerOffsetPostGridBoxResize), static_cast<float>(gridBoxSize), 0.f
+		};
+	}
+
+	void computeExcessWidthForGridSquaring()
+	{
+		excessWidth_Pixels = static_cast<float>(quadWidth - (cellSize * (numRowCells)));
+		excessWidth_NDC = static_cast<float>((2.f * (excessWidth_Pixels / windowWidth)));
+	}
+
+	void calculateCellSizeAndCellsPerDimension(float smallestDimension)
+	{
+		cellSize = smallestDimension / numColumnCells;
+		numRowCells = static_cast<int>(quadWidth / cellSize);
+		numColumnCells = static_cast<int>(quadHeight / cellSize);
 	}
 
 	void generateGridPoints()
 	{
-		float testOffset = 0.002f;
+		//float testOffset = 0.002f;
+		float testOffset = 0.001f;
 		// Generate vertices for vertical lines
 		for (int i = 1; i < (numRowCells); ++i)
 		{
@@ -188,7 +295,7 @@ public:
 	void computeGridBoxDimensions(const float eWP)
 	{
 		minQuadX = (1 - (gridBoxSize)) * 0.5f * windowWidth;
-		minQuadY = (1 - (gridBoxSize)) * 0.5f * windowHeight;
+		minQuadY = ((1 - (gridBoxSize)) * 0.5f * windowHeight);
 
 		maxQuadX = (((1 + (gridBoxSize)) * 0.5f * windowWidth) - (eWP));
 		maxQuadY = (1 + (gridBoxSize)) * 0.5f * windowHeight;
@@ -332,7 +439,7 @@ public:
 		}
 		// Determine which cell was clicked.
 		double gridX = ((pixelMouseX - offsetForMouseInGridCheck) - minQuadX) / cellSize;
-		double gridY = (pixelMouseY - minQuadY) / cellSize;
+		double gridY = ((pixelMouseY) - minQuadY) / cellSize;
 
 		// Band-aid fix to prevent erroneous detection and runtime crashes.
 		if (gridX < 0)
@@ -378,82 +485,91 @@ public:
 		retFlag = false;
 	}
 
+	/*void performZoom(int zoomDirection)
+	{
+		currentZoomIndex = glm::clamp(currentZoomIndex + zoomDirection);
+	}*/
+
 	// Getters
-	const float& getZoomFactor()
+	const float& getZoomFactor() const
 	{
 		return zoomFactor;
 	}
-	const float& getMaxZoomIn()
+	const float& getMaxZoomIn() const
 	{
 		return maxZoomIn;
 	}
-	const float& getMaxZoomOut()
+	const float& getMaxZoomOut() const
 	{
 		return maxZoomOut;
 	}
-	const float& getGridXOffset()
+	const float& getGridXOffset() const
 	{
 		return gridxOffset;
 	}
-	const float& getGridYOffset()
+	const float& getGridYOffset() const
 	{
 		return gridyOffset;
 	}
-	const bool getZoomInBool()
+	const bool getZoomInBool() const
 	{
 		return zoomIn;
 	}
-	const std::vector<float>& getGridPointsArray()
+	const std::vector<float>& getGridPointsArray() const
 	{
 		return gridPointsArray;
 	}
-	const std::vector<float>& getGridBoxVerticesArray()
+	const std::vector<float>& getGridBoxVerticesArray() const
 	{
 		return gridBoxQuadVerticesArray;
 	}
-	const std::vector<unsigned int>& getGridBoxQuadIndicesArray()
+	const std::vector<unsigned int>& getGridBoxQuadIndicesArray() const
 	{
 		return gridBoxQuadIndicesArray;
 	}
-	const int& getNumRowCells()
+	const int& getNumRowCells() const
 	{
 		return numRowCells;
 	}
-	const int& getNumColumnCells()
+	const int& getNumColumnCells() const
 	{
 		return numColumnCells;
 	}
-	const std::vector<Cell>& getMasterCellListArray()
-	{
+	const std::vector<Cell>& getMasterCellListArray() const
+ 	{
 		return masterCellList;
 	}
-	const float& getCellSize()
+	const float& getCellSize() const
 	{
 		return cellSize;
 	}
-	const float& getOffsetPostGridBoxResize()
+	const float& getOffsetPostGridBoxResize() const
 	{
 		return centerOffsetPostGridBoxResize;
 	}
-	const glm::ivec2& getCellIndicesForVertexAttribute()
+	const glm::ivec2& getCellIndicesForVertexAttribute() const
 	{
 		return cellIndicesVertexAttribute;
 	}
-	const std::vector<float>& getVerticesForOffsetsReference()
+	const std::vector<float>& getVerticesForOffsetsReference() const
 	{
 		return verticesForBaseCell;
 	}
-	const std::vector<glm::vec2>& getInstanceOffsetsArray()
+	const std::vector<glm::vec2>& getInstanceOffsetsArray() const
 	{
 		return offsetsForInstancedRenderingArray;
 	}
-	const TextureObject& getCellStatesTextureObject()
+	const TextureObject& getCellStatesTextureObject() const
 	{
 		return cellStatesTextureBuffer;
 	}
-	const std::vector<int> getMasterCellLifeStatesArray()
+	const std::vector<int> getMasterCellLifeStatesArray() const
 	{
 		return masterCellCurrentLifeStatesArray;
+	}
+	const glm::vec2 getScaleOffsetXY() const
+	{
+		return glm::vec2(scaleOffsetX, scaleOffsetY);
 	}
 
 
@@ -485,5 +601,10 @@ public:
 	void setMasterCellLifeStatesArray(const std::vector<int>& lifeStatesArray)
 	{
 		masterCellCurrentLifeStatesArray = lifeStatesArray;
+	}
+	void setWindowDimensions(int wW, int wH)
+	{
+		windowWidth = wW;
+		windowHeight = wH;
 	}
 };
