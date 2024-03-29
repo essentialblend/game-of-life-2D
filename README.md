@@ -1,7 +1,6 @@
 # gameOfLife2D
 
-Link to (compressed) video demo:
-https://github.com/essentialblend/gameOfLife2D/assets/73982939/facd1069-269a-4cc5-83be-5124f955f9d0
+[](https://github.com/essentialblend/gameOfLife2D/assets/73982939/facd1069-269a-4cc5-83be-5124f955f9d0)
 
 The classic cellular automata. Currently WIP.
 
